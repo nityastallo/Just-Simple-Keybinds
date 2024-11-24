@@ -1,12 +1,11 @@
-#include <iostream>
+#include <Windows.h>
+
+#include <cstdio>
 
 #include "JSK/Keybinds.h"
 
 int main()
 {
-    // Declare the keybind
-    JSK::Keybind kb;
-
     // Declare recording settings
     JSK::RecordSettings st = { };
 
@@ -16,12 +15,12 @@ int main()
     st.ModifierKeysAllowed = true;
     st.MaxKeysIncludeModifierKeys = true;
     st.ModifierKeysAllowedWithABC = true;
-    st.IncludeAcceptKeys = true;
+    st.IncludeAcceptKeys = false;
     st.MustAccept = true;
     st.AcceptKeys = { VK_RETURN };
 
-    // Apply the settings
-    kb.SetRecordSettings ( st );
+    // Create the keybind
+    JSK::Keybind kb ( st );
     
     std::printf ( "Recording...\n" );
 
@@ -43,7 +42,7 @@ int main()
     std::printf ( "Recording complete.\n" );
     std::printf ( "Recorded keybind: %s\n", JSK::GetKeybindLabel(kb.GetKeys()).c_str() );
     std::printf ( "Listening for keybind...\n" );
-    
+
     while ( true )
     {
         if ( kb.IsPressed ( ) ) // Print a message everytime the keybind is pressed

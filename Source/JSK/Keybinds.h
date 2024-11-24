@@ -4,39 +4,44 @@
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 
-#include <algorithm>
 #include <set>
-#include <unordered_set>
 #include <unordered_map>
 #include <string>
+#include <iosfwd>
+#include <string.h>
 #include <sstream>
 
 namespace JSK
 {
+	// Alias for a set of keys.
 	using Keys = std::set<BYTE>;
 
+	// ASCII values for uppercase and lowercase alphabet ranges.
 	constexpr BYTE ABC_UPPER_START = 65;
 	constexpr BYTE ABC_UPPER_END = 90;
 	constexpr BYTE ABC_LOWER_START = 97;
 	constexpr BYTE ABC_LOWER_END = 122;
 
+	// Bitmask values for detecting key states.
 	constexpr BYTE HIGH_BIT_MASK = 0x80;
 	constexpr BYTE MOUSE_ACTIVE_MASK = 0x100;
 
 	namespace Key
 	{
+		// Set of modifier keys (e.g., Shift, Ctrl, Alt).
 		Keys Modifier = {
 			VK_SHIFT, VK_CONTROL, VK_MENU, VK_TAB, VK_CAPITAL, VK_NUMLOCK, VK_SCROLL
 		};
 
+		// Set of mouse keys (e.g., Left, Right, Middle buttons).
 		Keys Mouse = {
 			VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_XBUTTON1, VK_XBUTTON2
 		};
 
+		// Global blacklist. If you want to exclude keys from recording use 'RecordSettings.Blacklist'.
 		Keys Blacklist = {};
 
-		// Some key names cannot be retrieved using GetKeyNameText and some pairs of keys aren't distinquished. 
-		// We need to manually map these names.
+		// Map of virtual key codes to their names for keys that cannot be retrieved using GetKeyNameTextA.
 		std::unordered_map<BYTE, std::string> Names = {
 			{ VK_LBUTTON, "LBM" },
 			{ VK_MBUTTON, "MMB" },
@@ -73,64 +78,49 @@ namespace JSK
 			{ VK_NUMLOCK, "Numlock" },
 		};
 
-	} // Key
+	} // namespace Key
 
-	typedef struct tagRecordSettings
+	// Structure to store settings related to key recording.
+	struct RecordSettings
 	{
-		// Maximum number of keys that can be recorded. 
-		// Once this limit is reached, the recording will automatically stop and save.
-		BYTE MaxKeys;
+		BYTE MaxKeys; // Maximum number of keys allowed during recording.
 
-		// A list of keys that are blacklisted from being recorded.
-		Keys Blacklist;
+		Keys Blacklist; // Set of keys excluded from recording.
 
-		// A list of keys that, if pressed, will automatically stop recording and save the data.
-		Keys AcceptKeys;
+		Keys AcceptKeys; // Keys that stop (and save) recording when pressed.
 
-		// Determines whether the 'AcceptKeys' should be included in the recorded keybinds.
-		// If true, 'AcceptKeys' will be counted as part of the key sequence when recorded.
-		bool IncludeAcceptKeys;
+		bool IncludeAcceptKeys; // Whether to include 'AcceptKeys' in the recording.
 
-		// If true, the 'Blacklist' is treated as a whitelist. Only keys listed in this list will be recorded.
-		bool BlacklistIsWhitelist;
+		bool BlacklistIsWhitelist; // Treat 'Blacklist' as a whitelist instead.
 
-		// Specifies whether mouse keys should be allowed in the recording.
-		bool MouseKeysAllowed;
+		bool MouseKeysAllowed; // Whether mouse keys are allowed in recording.
 
-		// If true, only alphabet characters will be recorded.
-		bool OnlyABC;
+		bool OnlyABC; // Restrict recording to alphabetic keys only.
 
-		// If true, modifier keys (like Shift, Ctrl, Alt) are allowed to be recorded.
-		bool ModifierKeysAllowed;
+		bool ModifierKeysAllowed; // Whether modifier keys are allowed in recording.
 
-		// Determines whether modifier keys are allowed to be used in conjunction with alphabet keys.
-		bool ModifierKeysAllowedWithABC;
+		bool ModifierKeysAllowedWithABC; // Allow modifiers with alphabetic keys.
 
-		// If true, any key release will automatically stop the recording and save the data.
-		bool AnyKeyAccepts;
+		bool AnyKeyAccepts; // Stop recording on any key release.
 
-		// If true, modifier keys will also count towards the 'MaxKeys' limit.
-		bool MaxKeysIncludeModifierKeys;
+		bool MaxKeysIncludeModifierKeys; // Include modifier keys in 'MaxKeys' limit.
 
-		// If true, the recording will continue even after a key is released, 
-		// and the recording will only stop when one of the 'AcceptKeys' is pressed.
-		// Priority over 'AnyKeyAccepts'
-		bool MustAccept;
-	} RecordSettings;
+		bool MustAccept; // Recording stops only when 'AcceptKeys' are pressed. Priority over 'AnyKeyAccepts'
+	};
 
-	// Checks whether a specific key is currently pressed (active).
+	// Checks whether a specific key is currently active.
 	bool IsKeyActive ( BYTE Key )
 	{
 		return ( GetKeyState ( Key ) & HIGH_BIT_MASK ) != 0;
 	}
 
-	// Checks whether a specific mouse key is currently pressed (active).
+	// Checks whether a specific mouse key is currently active.
 	bool IsMouseActive ( BYTE Key )
 	{
 		return ( GetKeyState ( Key ) & MOUSE_ACTIVE_MASK ) != 0;
 	}
 
-	// Checks if the key is an alphabetical character (either uppercase or lowercase).
+	// Checks if a key is an alphabetical character.
 	bool IsKeyABC ( BYTE Key )
 	{
 		return ( Key >= ABC_UPPER_START && Key <= ABC_UPPER_END ) ||
@@ -166,7 +156,7 @@ namespace JSK
 		return Result;
 	}
 
-	// Checks if all keys in a set are currently active.
+	// Checks if all keys in a provided set are currently active.
 	bool AreKeysActive ( Keys Keybind )
 	{
 		for ( const BYTE Key : Keybind )
@@ -179,6 +169,9 @@ namespace JSK
 	// Converts a set of keys to a label. (e.g. { VK_RETURN, VK_F9 } -> "Enter + F9" )
 	std::string GetKeybindLabel ( Keys Keybind )
 	{
+		if ( Keybind.size ( ) == 0 )
+			return "None";
+
 		std::stringstream label;
 		bool fs = true;
 
@@ -186,7 +179,7 @@ namespace JSK
 
 		for ( BYTE Key : Keybind )
 		{
-			
+
 			if ( Key::Names.count ( Key ) > 0 )
 				strcpy_s ( Name, Key::Names.at ( Key ).c_str ( ) );
 			else
@@ -202,21 +195,36 @@ namespace JSK
 		return label.str ( );
 	}
 
-	// Wrapper for the keys set with additional functionality
+	// Wrapper for a keybind with additional functionality
 	class Keybind
 	{
 		public:
-		Keybind ( void ) : m_record_settings( {2, {}, {VK_RETURN, VK_ESCAPE}, false, false, false, false, true, false, true, true, false} ) { } // Default settings
-		Keybind ( const RecordSettings &Settings ) : m_record_settings(Settings) { }
+		Keybind ( void ) : m_record_settings ( { 2, {}, {VK_RETURN, VK_ESCAPE}, false, false, false, false, true, false, true, true, false } ) { } // Default settings
 		~Keybind ( void ) noexcept { }
 
-		// Set settings for recording
+		Keybind ( const Keys &Keybind, const RecordSettings &Settings ) : m_keys ( Keybind ), m_record_settings ( Settings ) { }
+		Keybind ( const Keys &Keybind ) : m_keys ( Keybind ) { }
+		Keybind ( const RecordSettings &Settings ) : m_record_settings ( Settings ) { }
+
+		// Sets the keybind to a new set of keys.
+		void SetKeys ( Keys Keybind )
+		{
+			this->m_keys = Keybind;
+		}
+
+		// Checks if the keybind contains any keys
+		bool IsEmpty ( void )
+		{
+			return this->m_keys.size ( ) == 0;
+		}
+
+		// Updates the recording settings.
 		void SetRecordSettings ( const RecordSettings &Settings )
 		{
 			this->m_record_settings = Settings;
 		}
 
-		// Checks if all keys in this keybind are active.
+		// Checks if this keybind is active.
 		bool IsActive ( void )
 		{
 			for ( const BYTE Key : this->m_keys )
@@ -226,49 +234,55 @@ namespace JSK
 			return true;
 		}
 
-		// Checks if all keys are active just like 'IsActive()' but return true only once.
+		// Same as IsActive(), but returns true only once per press cycle.
 		bool IsPressed ( void )
 		{
-			bool isActive = this->IsActive();
+			bool isActive = this->IsActive ( );
 
-			if ( !this->m_active && isActive )
+			if ( !this->m_pressed && isActive )
 			{
-				this->m_active = true;
+				this->m_pressed = true;
 
 				return true;
 			}
 
+			if ( this->m_pressed && !isActive )
+				this->m_pressed = false; // shhh... 
+
 			return false;
 		}
 
-		// Same as 'IsPressed()' but returns true on release.
+		// Same as IsPressed(), but returns true on release.
 		bool IsReleased ( void )
 		{
 			bool isActive = this->IsActive ( );
 
-			if ( this->m_active && !isActive )
+			if ( !this->m_released && !isActive )
 			{
-				this->m_active = false;
+				this->m_released = true;
 
 				return true;
 			}
 
+			if ( this->m_released && isActive )
+				this->m_released = false;
+
 			return false;
 		}
 
-		// Returns the set of keys in the keybind.
+		// Retrieves the current set of keys in the keybind.
 		Keys GetKeys ( void )
 		{
 			return this->m_keys;
 		}
 
-		// Returns whether recording is currently active.
-		bool IsRecording ( void )
+		// Checks if the keybind is currently recording.
+		bool IsRecording ( void ) const
 		{
 			return this->m_recording;
 		}
 
-		// Starts recording with the given settings (or default settings if none provided).
+		// Starts recording with the current settings.
 		void Record ( void )
 		{
 			if ( this->IsRecording ( ) )
@@ -278,7 +292,7 @@ namespace JSK
 			this->m_recording = true;
 		}
 
-		// Stops the recording if it's currently in progress.
+		// Stops the current recording session.
 		void Stop ( void )
 		{
 			if ( !this->IsRecording ( ) )
@@ -290,11 +304,11 @@ namespace JSK
 		// Stops recording and saves the recorded keys.
 		void Save ( void )
 		{
-			this->Stop();
+			this->Stop ( );
 			this->m_keys = this->m_tm_record_keys;
 		}
-	
-		// Needs to be called every frame/tick. Scans for active keys while recording.
+
+		// Updates the recording session, capturing new active keys. Needs to be called every tick/frame.
 		bool Update ( void )
 		{
 			if ( !this->IsRecording ( ) )
@@ -320,7 +334,7 @@ namespace JSK
 
 			for ( BYTE i = 1; i < 255; i++ )
 			{
-				if ( i > 159 && i < 166 )
+				if ( i > 159 && i < 166 ) // Side specific modifier keys
 					continue;
 
 				bool isASCII = IsKeyABC ( i );
@@ -355,7 +369,7 @@ namespace JSK
 				bool isActive = ( IsKeyActive ( i ) && !isMouse ) || ( IsMouseActive ( i ) && isMouse );
 				bool isRecorded = this->m_tm_record_keys.count ( i ) > 0;
 
-				if ( (st.AcceptKeys.count(i) > 0) && isActive )
+				if ( ( st.AcceptKeys.count ( i ) > 0 ) && isActive )
 				{
 					if ( st.IncludeAcceptKeys )
 						this->m_tm_record_keys.insert ( i );
@@ -380,7 +394,7 @@ namespace JSK
 			return false;
 		}
 
-		// Returns active keys during recording for preview.
+		// Retrieves currently active keys during recording.
 		Keys GetRecordingPreview ( void )
 		{
 			if ( !this->IsRecording ( ) )
@@ -393,13 +407,15 @@ namespace JSK
 
 		Keys m_keys = {}; // The keys
 		bool m_recording = false; // Recording
-		RecordSettings m_record_settings = {}; // Settings used for recording
+		RecordSettings m_record_settings = {}; // Settings for recording
 
 		// * * * //
-		bool m_active = false; // Auxiliary variable for proper IsActivated() / IsDeactivated() functioning.
+		bool m_pressed = true;  // Auxiliary variable for IsActivated().
+		bool m_released = true; // Auxiliary variable for IsDeactivated().
+
 		Keys m_tm_record_keys = {}; // Active keys during recording
 	};
 
-} // JSK
+} // namespace JSK
 
 #endif // __JSK__
